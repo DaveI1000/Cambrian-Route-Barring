@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cambrian Route Barring</title>
@@ -79,6 +78,8 @@
   .change-log th{font-weight:800;background:#fafafa}
   .change-log tr:last-child td{border-bottom:0}
   .change-log-empty{padding:8px;color:var(--muted);font-size:11px}
+  .dashboard-head{margin:14px 0;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.dashboard-head h2{margin:0 0 4px;color:#195905}.dashboard-summary{font-size:13px;color:var(--muted)}
+  .dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.dashboard-card{background:#fff;border:2px solid #667085;border-radius:10px;overflow:hidden}.dashboard-card-head{padding:12px 14px;background:#f8fafc;border-bottom:1px solid #b7c0cc;font-weight:800}.dashboard-count{margin-left:7px;padding:3px 8px;border-radius:999px;background:var(--red);color:#fff;font-size:12px}.dashboard-table{width:100%;border-collapse:collapse;font-size:14px}.dashboard-table th,.dashboard-table td{padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:left}.dashboard-table th{background:#fafafa;font-size:12px}.dashboard-route{font-weight:800;color:var(--red)}.dashboard-empty{padding:30px 18px;text-align:center;color:var(--muted)}
   .archive-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 0}
   .save{border:0;background:#166534;color:#fff;border-radius:8px;padding:11px 16px;font-weight:800}
   .save-note{font-size:13px;color:var(--muted)}
@@ -86,7 +87,7 @@
   .empty{background:#fff;border:1px dashed #98a2b3;border-radius:12px;padding:36px;text-align:center;color:var(--muted)}
   .completed{font-size:12px;color:var(--muted);font-weight:700}
   .toast{margin-top:10px;font-size:13px;color:#166534;min-height:18px}
-  @media(max-width:1050px){.pair{grid-template-columns:repeat(2,minmax(0,1fr))}.archive-grid{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}}
+  @media(max-width:1050px){.pair{grid-template-columns:repeat(2,minmax(0,1fr))}.archive-grid,.dashboard-grid{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}}
   @media(max-width:650px){.app{padding:10px}.navrow{grid-template-columns:46px 1fr 46px}.arrow{height:46px}.vertical-nav .arrow{width:80px;height:42px}.brand{font-size:19px}.session{gap:10px;flex-direction:column;align-items:flex-start}}
 
   /* Requested control colours */
@@ -119,6 +120,7 @@
     </div>
     <nav class="tabs" aria-label="Pages">
       <button id="workingTab" class="tab active" type="button">Working Page</button>
+      <button id="dashboardTab" class="tab" type="button">Dashboard</button>
       <button id="archiveTab" class="tab" type="button">Archive</button>
     </nav>
   </header>
@@ -133,6 +135,7 @@
       <button id="nextPair" class="arrow" type="button" aria-label="Next two blocks">&#8595;</button>
     </div>
   </section>
+  <section id="dashboardPage" class="hidden"><div class="dashboard-head"><div><h2>Live Dashboard</h2><div class="dashboard-summary">Current red route states across all working pages. Completed blocks are excluded.</div></div><div id="dashboardSummary" class="dashboard-summary" aria-live="polite"></div></div><div id="dashboardGrid" class="dashboard-grid"></div></section>
 
   <section id="archivePage" class="hidden">
     <div class="archive-actions">
@@ -150,6 +153,7 @@
   const loginPage = document.getElementById('loginPage');
   const appPage = document.getElementById('appPage');
   const workingPage = document.getElementById('workingPage');
+  const dashboardPage = document.getElementById('dashboardPage');
   const archivePage = document.getElementById('archivePage');
   const workingPair = document.getElementById('workingPair');
   const archiveGrid = document.getElementById('archiveGrid');
@@ -157,7 +161,10 @@
   const prevPair = document.getElementById('prevPair');
   const nextPair = document.getElementById('nextPair');
   const workingTab = document.getElementById('workingTab');
+  const dashboardTab = document.getElementById('dashboardTab');
   const archiveTab = document.getElementById('archiveTab');
+  const dashboardGrid = document.getElementById('dashboardGrid');
+  const dashboardSummary = document.getElementById('dashboardSummary');
   const saveToast = document.getElementById('saveToast');
 
   let session = null;
@@ -187,6 +194,7 @@
   function pad(n){ return String(n).padStart(2,'0'); }
   function displayDateTime(d){ return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
   function fileDate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+  function fileDateTime(d){ return `${fileDate(d)}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`; }
   function safeName(s){ return s.trim().replace(/[<>:"/\\|?*\x00-\x1F]/g,'_').replace(/\s+/g,' ').replace(/[. ]+$/g,'') || 'User'; }
 
   document.getElementById('loginForm').addEventListener('submit', e => {
@@ -194,7 +202,7 @@
     const raw = document.getElementById('userName').value.trim();
     if (!raw) { document.getElementById('loginError').textContent = 'Please enter a user name.'; return; }
     const started = new Date();
-    session = { user: raw, started, filename: `${fileDate(started)}_${safeName(raw)}` };
+    session = { user: raw, started, filename: `${fileDateTime(started)}_${safeName(raw)}` };
     initBlocks();
     document.getElementById('sessionUser').textContent = session.user;
     document.getElementById('sessionTime').textContent = displayDateTime(started);
@@ -277,7 +285,11 @@
     pairLabel.textContent = `Blocks ${start+1}–${start+2} of 8`;
     prevPair.disabled = pairIndex===0; nextPair.disabled = pairIndex===3;
     wireBlocks(workingPair);
+    renderDashboard();
   }
+  function currentRedRoutes(type){const entries=[];blocks.forEach(block=>getRows(block,type).forEach(row=>{if(row.route.trim()&&row.states.includes('red'))entries.push({route:row.route.trim(),refNo:block.refNo.trim(),slot:block.slot,page:Math.floor((block.slot-1)/2)+1});}));return entries;}
+  function dashboardCard(title,entries,emptyMessage){const rows=entries.map(e=>`<tr><td class="dashboard-route">${esc(e.route)}</td><td>${esc(e.refNo||'—')}</td><td>Working Page ${e.page} · Block ${e.slot}</td></tr>`).join('');return `<section class="dashboard-card"><div class="dashboard-card-head">${title}<span class="dashboard-count">${entries.length}</span></div>${rows?`<table class="dashboard-table"><thead><tr><th>Route / Node No.</th><th>Ref No.</th><th>Working page / block</th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="dashboard-empty">${emptyMessage}</div>`}</section>`;}
+  function renderDashboard(){const barred=currentRedRoutes('block'),disconnected=currentRedRoutes('signal');dashboardGrid.innerHTML=dashboardCard('BARRED Block Markers',barred,'No current Block Marker routes are barred.')+dashboardCard('DISCONNECTED Signal Nodes',disconnected,'No current Signal Node routes are disconnected.');dashboardSummary.textContent=`${barred.length} barred · ${disconnected.length} disconnected`;}
   function renderArchive(){
     archiveGrid.innerHTML = archive.length ? archive.map(b => blockHtml(b,true)).join('') : `<div class="empty">No blocks have been marked Done yet.</div>`;
   }
@@ -287,7 +299,7 @@
     root.querySelectorAll('.block').forEach(el => {
       const slot = Number(el.dataset.slot); const block = blocks.find(b => b.slot===slot);
       if (!block) return;
-      el.querySelectorAll('[data-field]').forEach(inp => inp.addEventListener('input', () => { block[inp.dataset.field]=inp.value; }));
+      el.querySelectorAll('[data-field]').forEach(inp => inp.addEventListener('input', () => { block[inp.dataset.field]=inp.value; renderDashboard(); }));
       el.querySelectorAll('[data-route-type]').forEach(inp => inp.addEventListener('change', () => {
         const row=getRows(block,inp.dataset.routeType)[Number(inp.dataset.row)];
         row.route=inp.value;
@@ -345,18 +357,30 @@
   prevPair.addEventListener('click',()=>{ if(pairIndex>0){pairIndex--;renderWorking();} });
   nextPair.addEventListener('click',()=>{ if(pairIndex<3){pairIndex++;renderWorking();} });
   workingTab.addEventListener('click',()=>showPage('working'));
+  dashboardTab.addEventListener('click',()=>showPage('dashboard'));
   archiveTab.addEventListener('click',()=>showPage('archive'));
   function showPage(which){
     const isWork=which==='working';
-    workingPage.classList.toggle('hidden',!isWork); archivePage.classList.toggle('hidden',isWork);
-    workingTab.classList.toggle('active',isWork); archiveTab.classList.toggle('active',!isWork);
-    if(!isWork) renderArchive();
+    const isDashboard=which==='dashboard',isArchive=which==='archive';
+    workingPage.classList.toggle('hidden',!isWork);dashboardPage.classList.toggle('hidden',!isDashboard);archivePage.classList.toggle('hidden',!isArchive);
+    workingTab.classList.toggle('active',isWork);dashboardTab.classList.toggle('active',isDashboard);archiveTab.classList.toggle('active',isArchive);
+    if(isDashboard)renderDashboard();if(isArchive)renderArchive();
   }
 
   function archiveDocumentHtml(){
     const cards = archive.length ? archive.map(b=>blockHtml(b,true)).join('') : '<p>No archived blocks.</p>';
     const css = document.querySelector('style').textContent;
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(session.filename)} - Route Barring Archive</title><style>${css}\nbody{background:#fff}.archive-export{padding:20px;max-width:1800px;margin:auto}.archive-grid{display:grid}.controls,.tabs,.navrow,.save{display:none!important}</style></head><body><main class="archive-export"><h1>Cambrian Route Barring — Archive</h1><p><strong>User:</strong> ${esc(session.user)} &nbsp; <strong>Started:</strong> ${esc(displayDateTime(session.started))} &nbsp; <strong>File:</strong> ${esc(session.filename)}</p><div class="archive-grid">${cards}</div></main></body></html>`;
+  }
+
+  function startCleanSessionAfterSave(){
+    blocks=Array.from({length:8},(_,i)=>newBlock(i+1));
+    archive=[];
+    pairIndex=0;
+    const refreshed=new Date();
+    session.filename=`${fileDateTime(refreshed)}_${safeName(session.user)}`;
+    document.getElementById('sessionFile').textContent=session.filename;
+    renderWorking();renderArchive();showPage('working');
   }
 
   document.getElementById('saveArchive').addEventListener('click', async () => {
@@ -377,6 +401,7 @@
         a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
         saveToast.textContent=`Downloaded ${filename}. Move/save it into Documents\\Route Barring.`;
       }
+      startCleanSessionAfterSave();
     } catch(err){
       if(err && err.name==='AbortError') saveToast.textContent='Save cancelled.';
       else saveToast.textContent='The browser could not save the archive. Try Save Archive again.';
